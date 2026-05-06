@@ -1108,36 +1108,43 @@ fbAuth.onAuthStateChanged(user => {
     document.getElementById('authOverlay').classList.remove('open');
     showUserBar(user);
 
-    // Load from Firebase — if empty, save defaults
+    // Load from Firebase
     dbRef.once('value').then(snap => {
       const fbData = snap.val();
-      if (fbData && fbData.folders) {
+      if (fbData && fbData.folders && fbData.folders.length > 0) {
         DB = fbData;
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
       } else {
+        // First login — push default data to Firebase
+        DB = defaultDB();
         dbRef.set(DB);
+        localStorage.setItem('family-planner-local', JSON.stringify(DB));
       }
       renderSidebar();
       renderAll();
-    }).catch(() => { renderSidebar(); renderAll(); });
+    }).catch(err => {
+      console.warn('Firebase load error:', err);
+      DB = loadDB() || defaultDB();
+      renderSidebar();
+      renderAll();
+    });
 
-    // Listen for realtime changes from other devices
+    // Realtime sync from other devices
     dbRef.on('value', snap => {
       const fbData = snap.val();
-      if (fbData && fbData.folders) {
-        const fbStr = JSON.stringify(fbData);
-        const localStr = JSON.stringify(DB);
-        if (fbStr !== localStr) {
-          DB = fbData;
-          localStorage.setItem('family-planner-local', JSON.stringify(DB));
-          renderSidebar();
-          renderAll();
-          if (curView === 'timeline') rg();
-        }
+      if (!fbData || !fbData.folders) return;
+      const fbStr = JSON.stringify(fbData);
+      const localStr = JSON.stringify(DB);
+      if (fbStr !== localStr) {
+        DB = fbData;
+        localStorage.setItem('family-planner-local', JSON.stringify(DB));
+        renderSidebar();
+        renderAll();
+        if (curView === 'timeline') rg();
       }
     });
+
   } else {
-    // Not logged in — show auth overlay
     document.getElementById('authOverlay').classList.add('open');
   }
 });
