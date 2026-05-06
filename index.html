@@ -88,13 +88,12 @@ header h1{font-family:'Fraunces',serif;font-size:19px;font-weight:600;letter-spa
 
 /* NOTE ROW */
 .note-row{padding:7px 10px 8px;display:flex;align-items:flex-start;gap:7px;border-top:1px solid rgba(0,0,0,.06);}
-.note-row.med{background:#fdf3f6;}.note-row.fin{background:#f0f4fc;}.note-row.dom{background:#f0f8f3;}.note-row.ms{background:#fef6ec;}.note-row.empty{background:var(--paper);}
+.note-row.med{background:#fdf3f6;}.note-row.fin{background:#f0f4fc;}.note-row.dom{background:#f0f8f3;}.note-row.ms{background:#fef6ec;}
 .naccent{width:2.5px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:18px;}
 .naccent.med{background:#d46080;}.naccent.fin{background:#5b80d4;}.naccent.dom{background:#3d9966;}.naccent.ms{background:var(--ms);}
 .nicon{font-size:12px;flex-shrink:0;margin-top:1px;opacity:.7;}
 .nbody{flex:1;min-width:0;}
 .ntxt{font-size:11.5px;color:var(--ink2);line-height:1.45;white-space:pre-wrap;word-break:break-word;}
-.ntxt.ph{color:var(--ink3);font-style:italic;font-size:11px;}
 .nlink{display:inline-flex;align-items:center;gap:3px;margin-top:4px;}
 .nlink a{font-size:11px;color:#5b80d4;text-decoration:none;background:#edf0fc;padding:2px 7px;border-radius:8px;border:1px solid #b8c4e8;}
 .nlink a:hover{text-decoration:underline;}
@@ -322,26 +321,31 @@ function rt(id){
   const crowCls=['crow', t.ms?'ms':t.cat, done?'done-row':''].filter(Boolean).join(' ');
   const sdotCls='sdot'+(partial?' partial on':skipped?' skipped on':'');
 
-  // Note area
+  // Note area — only render when there is actual content
   const hasNote=!!t.note, hasLink=!!t.link;
   const hasContent=hasNote||hasLink||partial||skipped;
-  const noteRowCls='note-row '+(t.ms?'ms':t.cat)+(hasContent?'':' empty');
-  let statusBadge='';
-  if(done) statusBadge=`<div class="sbadge done">✓ Виконано</div>`;
-  else if(partial) statusBadge=`<div class="sbadge partial">◑ Частково</div>`;
-  else if(skipped) statusBadge=`<div class="sbadge skipped">✕ Пропущено</div>`;
 
-  let noteContent='';
-  if(hasNote){
-    noteContent=`<div class="ntxt">${esc(t.note)}</div>`;
-  } else {
-    noteContent=`<div class="ntxt ph">Натисни ✏️ щоб додати нотатку...</div>`;
-  }
-  let linkContent='';
-  if(hasLink){
-    const href=t.link.startsWith('http')?t.link:'https://'+t.link;
-    const disp=t.link.length>40?t.link.slice(0,40)+'…':t.link;
-    linkContent=`<div class="nlink"><a href="${esc(href)}" target="_blank" rel="noopener">🔗 ${esc(disp)}</a></div>`;
+  let noteRow='';
+  if(hasContent){
+    let statusBadge='';
+    if(done) statusBadge=`<div class="sbadge done">✓ Виконано</div>`;
+    else if(partial) statusBadge=`<div class="sbadge partial">◑ Частково</div>`;
+    else if(skipped) statusBadge=`<div class="sbadge skipped">✕ Пропущено</div>`;
+
+    let noteContent=hasNote?`<div class="ntxt">${esc(t.note)}</div>`:'';
+    let linkContent='';
+    if(hasLink){
+      const href=t.link.startsWith('http')?t.link:'https://'+t.link;
+      const disp=t.link.length>40?t.link.slice(0,40)+'…':t.link;
+      linkContent=`<div class="nlink"><a href="${esc(href)}" target="_blank" rel="noopener">🔗 ${esc(disp)}</a></div>`;
+    }
+    const noteRowCls='note-row '+(t.ms?'ms':t.cat);
+    noteRow=`<div class="${noteRowCls}">
+      <div class="naccent ${t.ms?'ms':t.cat}"></div>
+      <div class="nicon">📝</div>
+      <div class="nbody">${noteContent}${linkContent}</div>
+      ${statusBadge}
+    </div>`;
   }
 
   wrap.innerHTML=`<div class="tw"><div class="card">
@@ -353,12 +357,7 @@ function rt(id){
       <div class="cwk">${esc(t.week)}</div>
       <button class="ebtn" onclick="om('${id}')" title="Редагувати"><svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z"/></svg></button>
     </div>
-    <div class="${noteRowCls}">
-      <div class="naccent ${t.ms?'ms':t.cat}"></div>
-      <div class="nicon">📝</div>
-      <div class="nbody">${noteContent}${linkContent}</div>
-      ${statusBadge}
-    </div>
+    ${noteRow}
   </div></div>`;
 }
 
