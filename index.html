@@ -392,7 +392,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 const SK = 'family-planner-v1';
 const saveDB = db => localStorage.setItem(SK, JSON.stringify(db));
 const loadDB = () => { try { return JSON.parse(localStorage.getItem(SK)) || null; } catch { return null; } };
-
 const EMOJIS = ['🤰','🏠','🔨','🛏️','🚗','💊','🎓','💼','🌿','🍼','🏗️','💡','🛁','🪴','🐾','📦','🎯','💰','🏋️','✈️'];
 
 // DEFAULT FOLDERS
@@ -1041,6 +1040,7 @@ document.addEventListener('keydown', e => {
 
 renderSidebar();
 renderAll();
+
 window.addEventListener('resize', () => { if (curView === 'timeline') rg(); });
 </script>
 
