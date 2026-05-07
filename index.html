@@ -1111,6 +1111,15 @@ function showUserBar(user) {
 }
 
 // Firebase auth state listener
+let fbInitialized = false;
+
+function isValidDB(data) {
+  if (!data || !data.folders || !Array.isArray(data.folders)) return false;
+  if (data.folders.length === 0) return false;
+  const totalSteps = data.folders.reduce((s,f) => s + (Array.isArray(f.steps) ? f.steps.length : 0), 0);
+  return totalSteps > 0;
+}
+
 fbAuth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
@@ -1118,43 +1127,47 @@ fbAuth.onAuthStateChanged(user => {
     document.getElementById('authOverlay').classList.remove('open');
     showUserBar(user);
 
-    // Load from Firebase
+    // Load from Firebase once
     dbRef.once('value').then(snap => {
       const fbData = snap.val();
-      // Check folders exist AND have steps
-      const totalSteps = fbData?.folders?.reduce((s,f) => s + (f.steps?.length||0), 0) || 0;
-      const hasRealData = fbData && fbData.folders && fbData.folders.length > 0 && totalSteps > 0;
-      if (hasRealData) {
+
+      if (isValidDB(fbData)) {
+        // Firebase has valid data — use it
         DB = fbData;
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
       } else {
-        // Empty or broken data — reset to defaults
+        // No valid data in Firebase — write defaults
         DB = defaultDB();
-        dbRef.set(DB);
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
+        dbRef.set(DB).catch(e => console.warn('FB write error:', e));
       }
+
+      fbInitialized = true;
       renderSidebar();
       renderAll();
+
+      // Only start realtime listener AFTER initial load
+      dbRef.on('value', snap => {
+        if (!fbInitialized) return;
+        const fbData = snap.val();
+        if (!isValidDB(fbData)) return; // never overwrite with empty data
+        const fbStr = JSON.stringify(fbData);
+        const localStr = JSON.stringify(DB);
+        if (fbStr !== localStr) {
+          DB = fbData;
+          localStorage.setItem('family-planner-local', JSON.stringify(DB));
+          renderSidebar();
+          renderAll();
+          if (curView === 'timeline') rg();
+        }
+      });
+
     }).catch(err => {
       console.warn('Firebase load error:', err);
       DB = loadDB() || defaultDB();
+      fbInitialized = true;
       renderSidebar();
       renderAll();
-    });
-
-    // Realtime sync from other devices
-    dbRef.on('value', snap => {
-      const fbData = snap.val();
-      if (!fbData || !fbData.folders) return;
-      const fbStr = JSON.stringify(fbData);
-      const localStr = JSON.stringify(DB);
-      if (fbStr !== localStr) {
-        DB = fbData;
-        localStorage.setItem('family-planner-local', JSON.stringify(DB));
-        renderSidebar();
-        renderAll();
-        if (curView === 'timeline') rg();
-      }
     });
 
   } else {
