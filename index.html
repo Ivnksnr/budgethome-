@@ -387,11 +387,113 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 
 <script>
 // ═══════════════════════════════════
-// STORAGE
+// STORAGE — GitHub Gist Sync
 // ═══════════════════════════════════
 const SK = 'family-planner-v1';
-const saveDB = db => localStorage.setItem(SK, JSON.stringify(db));
+const GIST_TOKEN = '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';
+const GIST_ID = 'WILL_BE_SET'; // set after first run
+const GIST_FILE = 'family-planner-data.json';
+let isSyncing = false;
+let saveTimeout = null;
+let gistIdResolved = localStorage.getItem('fp-gist-id') || null;
+
+const saveLocal = db => localStorage.setItem(SK, JSON.stringify(db));
 const loadDB = () => { try { return JSON.parse(localStorage.getItem(SK)) || null; } catch { return null; } };
+
+const saveDB = (db) => {
+  saveLocal(db);
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => gistSave(db), 1200);
+};
+
+async function gistReq(method, path, body) {
+  try {
+    const res = await fetch('https://api.github.com' + path, {
+      method,
+      headers: {
+        'Authorization': 'token ' + GIST_TOKEN,
+        'Content-Type': 'application/json',
+        'User-Agent': 'family-planner'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e) { return null; }
+}
+
+async function gistSave(db) {
+  if (!gistIdResolved) return;
+  await gistReq('PATCH', '/gists/' + gistIdResolved, {
+    files: { [GIST_FILE]: { content: JSON.stringify(db, null, 2) } }
+  });
+  showSync('✅');
+}
+
+async function gistPoll() {
+  if (!gistIdResolved || isSyncing) return;
+  isSyncing = true;
+  const r = await gistReq('GET', '/gists/' + gistIdResolved);
+  isSyncing = false;
+  if (!r?.files?.[GIST_FILE]?.content) return;
+  try {
+    const remote = JSON.parse(r.files[GIST_FILE].content);
+    if (remote?.folders?.length > 0 && JSON.stringify(remote) !== JSON.stringify(DB)) {
+      DB = remote;
+      saveLocal(DB);
+      renderSidebar();
+      renderAll();
+      if (curView === 'timeline') rg();
+      showSync('🔄');
+    }
+  } catch(e) {}
+}
+
+function showSync(icon) {
+  const el = document.getElementById('syncDot');
+  if (!el) return;
+  el.textContent = icon;
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0.3', 2000);
+}
+
+async function initGist() {
+  // If we already know the gist ID — just load and start polling
+  if (gistIdResolved) {
+    const r = await gistReq('GET', '/gists/' + gistIdResolved);
+    if (r?.files?.[GIST_FILE]?.content) {
+      try {
+        const remote = JSON.parse(r.files[GIST_FILE].content);
+        if (remote?.folders?.length > 0) {
+          DB = remote;
+          saveLocal(DB);
+          renderSidebar();
+          renderAll();
+        }
+      } catch(e) {}
+    } else {
+      // Gist gone — recreate
+      gistIdResolved = null;
+      localStorage.removeItem('fp-gist-id');
+      await initGist();
+      return;
+    }
+  } else {
+    // Create new gist with current data
+    const r = await gistReq('POST', '/gists', {
+      description: 'family-planner-shared-data',
+      public: false,
+      files: { [GIST_FILE]: { content: JSON.stringify(DB, null, 2) } }
+    });
+    if (r?.id) {
+      gistIdResolved = r.id;
+      localStorage.setItem('fp-gist-id', gistIdResolved);
+      showSync('✅');
+    }
+  }
+  // Poll every 15 seconds
+  setInterval(gistPoll, 15000);
+}
 const EMOJIS = ['🤰','🏠','🔨','🛏️','🚗','💊','🎓','💼','🌿','🍼','🏗️','💡','🛁','🪴','🐾','📦','🎯','💰','🏋️','✈️'];
 
 // DEFAULT FOLDERS
