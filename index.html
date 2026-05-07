@@ -1111,11 +1111,14 @@ fbAuth.onAuthStateChanged(user => {
     // Load from Firebase
     dbRef.once('value').then(snap => {
       const fbData = snap.val();
-      if (fbData && fbData.folders && fbData.folders.length > 0) {
+      // Check folders exist AND have steps
+      const hasRealData = fbData && fbData.folders && fbData.folders.length > 0 &&
+        fbData.folders.some(f => f.steps && f.steps.length > 0);
+      if (hasRealData) {
         DB = fbData;
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
       } else {
-        // First login — push default data to Firebase
+        // Empty or broken data — reset to defaults
         DB = defaultDB();
         dbRef.set(DB);
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
