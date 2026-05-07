@@ -1116,8 +1116,13 @@ let fbInitialized = false;
 function isValidDB(data) {
   if (!data || !data.folders || !Array.isArray(data.folders)) return false;
   if (data.folders.length === 0) return false;
-  const totalSteps = data.folders.reduce((s,f) => s + (Array.isArray(f.steps) ? f.steps.length : 0), 0);
-  return totalSteps > 0;
+  // Check both 'steps' and 'tasks' field names
+  const total = data.folders.reduce((s,f) => {
+    const steps = Array.isArray(f.steps) ? f.steps.length : 0;
+    const tasks = Array.isArray(f.tasks) ? f.tasks.length : 0;
+    return s + steps + tasks;
+  }, 0);
+  return total > 0;
 }
 
 fbAuth.onAuthStateChanged(user => {
