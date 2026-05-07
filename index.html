@@ -567,6 +567,16 @@ function getTask(folder, taskId) {
 // ═══════════════════════════════════
 // SIDEBAR
 // ═══════════════════════════════════
+
+function resetToDefaults() {
+  if (!confirm('Скинути всі дані до початкових? Всі зміни будуть втрачені.')) return;
+  DB = defaultDB();
+  localStorage.setItem('family-planner-local', JSON.stringify(DB));
+  if (dbRef) dbRef.set(DB);
+  renderSidebar();
+  renderAll();
+}
+
 function renderSidebar() {
   const list = document.getElementById('folderList');
   list.innerHTML = '';
@@ -1112,8 +1122,8 @@ fbAuth.onAuthStateChanged(user => {
     dbRef.once('value').then(snap => {
       const fbData = snap.val();
       // Check folders exist AND have steps
-      const hasRealData = fbData && fbData.folders && fbData.folders.length > 0 &&
-        fbData.folders.some(f => f.steps && f.steps.length > 0);
+      const totalSteps = fbData?.folders?.reduce((s,f) => s + (f.steps?.length||0), 0) || 0;
+      const hasRealData = fbData && fbData.folders && fbData.folders.length > 0 && totalSteps > 0;
       if (hasRealData) {
         DB = fbData;
         localStorage.setItem('family-planner-local', JSON.stringify(DB));
