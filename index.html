@@ -256,7 +256,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
     Новий розділ
   </button>
   <div class="sb-div"></div>
-  <div class="sb-foot">Baby Timeline v3.0</div>
+  <div style="display:flex;gap:5px;padding:6px 6px 4px;">
+    <button onclick="manualPull()" id="pullBtn" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:10px;cursor:pointer;">⬇ Оновити</button>
+    <button onclick="manualPush()" id="pushBtn" style="flex:1;padding:7px 4px;border-radius:7px;border:none;background:rgba(201,112,144,.25);color:#c97090;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;cursor:pointer;">⬆ Зберегти</button>
+  </div>
+  <div class="sb-foot"><span id="syncDot" style="opacity:0.3;margin-right:4px;">●</span>Baby Timeline v3.0</div>
 </aside>
 
 <!-- MAIN -->
@@ -465,12 +469,11 @@ function showSync(icon) {
 }
 
 async function manualPush() {
-  const btn = document.querySelector('.push-btn');
+  const btn = document.getElementById('pushBtn');
   if (!btn) return;
   const orig = btn.textContent;
-  btn.textContent = '⏳ Збереження...';
+  btn.textContent = '⏳...';
   btn.disabled = true;
-  btn.classList.add('saving');
   
   if (!gistIdResolved) {
     await initGist();
@@ -479,23 +482,20 @@ async function manualPush() {
       files: { [GIST_FILE]: { content: JSON.stringify(DB, null, 2) } }
     });
     if (r) {
-      btn.textContent = '✅ Збережено';
-      btn.classList.remove('saving');
+      btn.textContent = '✅ Ok';
       setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
     } else {
-      btn.textContent = '❌ Помилка';
-      btn.classList.remove('saving');
-      btn.classList.add('error');
-      setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.classList.remove('error'); }, 3000);
+      btn.textContent = '❌';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
     }
   }
 }
 
 async function manualPull() {
-  const btn = document.querySelector('.pull-btn');
+  const btn = document.getElementById('pullBtn');
   if (!btn) return;
   const orig = btn.textContent;
-  btn.textContent = '⏳ Завантаження...';
+  btn.textContent = '⏳...';
   btn.disabled = true;
 
   if (!gistIdResolved) {
@@ -514,15 +514,15 @@ async function manualPull() {
         renderSidebar();
         renderAll();
         if (curView === 'timeline') rg();
-        btn.textContent = '✅ Оновлено';
+        btn.textContent = '✅ Ok';
       } else {
-        btn.textContent = '— Без змін';
+        btn.textContent = '—';
       }
     } catch(e) {
-      btn.textContent = '❌ Помилка';
+      btn.textContent = '❌';
     }
   } else {
-    btn.textContent = '❌ Не вдалось';
+    btn.textContent = '❌';
   }
   setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
 }
