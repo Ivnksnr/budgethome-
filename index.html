@@ -485,6 +485,24 @@ for (const f of DB.folders) {
     if (!Array.isArray(f.tasks)) f.tasks = [];
     if (!Array.isArray(f.sections)) f.sections = [];
   }
+  // Migration: add new default folders if missing
+  const defaults = defaultDB();
+  const existingIds = new Set(remote.folders.map(f => f.id));
+  let migrated = false;
+  for (const defFolder of defaults.folders) {
+    if (!existingIds.has(defFolder.id) && (defFolder.id === 'birth_pl' || defFolder.id === 'birth_ua')) {
+      remote.folders.push(defFolder);
+      migrated = true;
+    }
+  }
+  if (migrated) {
+    DB = remote;
+    saveLocal(DB);
+    await sbSave(DB);
+    renderSidebar(); renderAll();
+    showSync('🆕');
+    return true;
+  }
   // Merge: if any default folder is missing — add it
   const defaults = defaultDB();
   const existingIds = new Set(remote.folders.map(f => f.id));
@@ -603,6 +621,68 @@ function defaultDB() {
           {id:'r8', label:'Фарбування та шпалери', week:'', cat:'renovation', sec:'finish', s:18, e:22},
           {id:'r9', label:'Підлога', week:'', cat:'renovation', sec:'finish', s:22, e:26},
           {id:'r10', label:'⭐ Здача та прийомка робіт', week:'', cat:'renovation', sec:'finish', ms:true, s:26, e:28},
+        ],
+        state: {}
+      },
+      {
+        id: 'birth_pl', name: 'Пологи в Польщі', emoji: '🇵🇱', color: '#dc143c',
+        categories: ['milestone','medical','finance','domestic'],
+        sections: [
+          {id:'prep_pl', name:'Підготовка', sub:'документи та клініка'},
+          {id:'birth_pl_act', name:'Пологи', sub:'процес'},
+          {id:'after_pl', name:'Після родів', sub:'перебування під наглядом'},
+        ],
+        tasks: [
+          {id:'pl1', label:'⭐ Вибір клініки/шпиталю', week:'20–24 тиж.', cat:'milestone', sec:'prep_pl', ms:true, s:20, e:24},
+          {id:'pl2', label:'Реєстрація в NFZ або страховка', week:'12–16 тиж.', cat:'finance', sec:'prep_pl', s:12, e:16},
+          {id:'pl3', label:'Karta przebiegu ciąży', week:'10–14 тиж.', cat:'medical', sec:'prep_pl', s:10, e:14},
+          {id:'pl4', label:'План пологів (plan porodu)', week:'32–36 тиж.', cat:'medical', sec:'prep_pl', s:32, e:36},
+          {id:'pl5', label:'Курси (szkoła rodzenia)', week:'24–32 тиж.', cat:'domestic', sec:'prep_pl', s:24, e:32},
+          {id:'pl6', label:'Збір сумок до szpital', week:'34–36 тиж.', cat:'domestic', sec:'prep_pl', s:34, e:36},
+          {id:'pl7', label:'Документи: paszport, PESEL', week:'28–32 тиж.', cat:'finance', sec:'prep_pl', s:28, e:32},
+          {id:'pl8', label:'⭐ Перейми та виклик pogotowie', week:'38–40 тиж.', cat:'milestone', sec:'birth_pl_act', ms:true, s:38, e:40},
+          {id:'pl9', label:'Прийом до szpital — porodówka', week:'40 тиж.', cat:'medical', sec:'birth_pl_act', s:40, e:40},
+          {id:'pl10', label:'Знеболення (epidural або інше)', week:'40 тиж.', cat:'medical', sec:'birth_pl_act', s:40, e:40},
+          {id:'pl11', label:'⭐ Народження дитини', week:'40 тиж.', cat:'milestone', sec:'birth_pl_act', ms:true, s:40, e:40},
+          {id:'pl12', label:'Перебування в шпиталі (2-4 дні)', week:'після пологів', cat:'medical', sec:'after_pl', s:40, e:41},
+          {id:'pl13', label:'Перші щеплення (WZW B, BCG)', week:'перші 24 год', cat:'medical', sec:'after_pl', s:40, e:41},
+          {id:'pl14', label:'Skala Apgar та обстеження', week:'одразу після', cat:'medical', sec:'after_pl', s:40, e:40},
+          {id:'pl15', label:'Реєстрація народження (USC)', week:'21 день', cat:'finance', sec:'after_pl', s:40, e:42},
+          {id:'pl16', label:'Akt urodzenia + PESEL', week:'після USC', cat:'finance', sec:'after_pl', s:40, e:42},
+          {id:'pl17', label:'Becikowe (1000 zł)', week:'до 12 міс.', cat:'finance', sec:'after_pl', s:40, e:52},
+          {id:'pl18', label:'Rodzina 800+', week:'щомісяця', cat:'finance', sec:'after_pl', s:40, e:52},
+          {id:'pl19', label:'Wybór pediatry, перша wizyta', week:'перший тиждень', cat:'medical', sec:'after_pl', s:40, e:41},
+        ],
+        state: {}
+      },
+      {
+        id: 'birth_ua', name: 'Пологи в Україні', emoji: '🇺🇦', color: '#1d62a8',
+        categories: ['milestone','medical','finance','domestic'],
+        sections: [
+          {id:'prep_ua', name:'Підготовка', sub:'документи та пологовий'},
+          {id:'birth_ua_act', name:'Пологи', sub:'процес'},
+          {id:'after_ua', name:'Після родів', sub:'перебування під наглядом'},
+        ],
+        tasks: [
+          {id:'ua1', label:'⭐ Вибір пологового будинку', week:'24–28 тиж.', cat:'milestone', sec:'prep_ua', ms:true, s:24, e:28},
+          {id:'ua2', label:'Договір / партнерські пологи', week:'30–34 тиж.', cat:'finance', sec:'prep_ua', s:30, e:34},
+          {id:'ua3', label:'Обмінна карта вагітної', week:'28–32 тиж.', cat:'medical', sec:'prep_ua', s:28, e:32},
+          {id:'ua4', label:'План пологів', week:'32–36 тиж.', cat:'medical', sec:'prep_ua', s:32, e:36},
+          {id:'ua5', label:'Курси для вагітних', week:'24–32 тиж.', cat:'domestic', sec:'prep_ua', s:24, e:32},
+          {id:'ua6', label:'Збір сумок у пологовий', week:'34–36 тиж.', cat:'domestic', sec:'prep_ua', s:34, e:36},
+          {id:'ua7', label:'Документи: паспорт, страхування', week:'28–32 тиж.', cat:'finance', sec:'prep_ua', s:28, e:32},
+          {id:'ua8', label:'⭐ Перейми та виклик швидкої', week:'38–40 тиж.', cat:'milestone', sec:'birth_ua_act', ms:true, s:38, e:40},
+          {id:'ua9', label:'Прийом до пологового будинку', week:'40 тиж.', cat:'medical', sec:'birth_ua_act', s:40, e:40},
+          {id:'ua10', label:'Знеболення (епідуральна або ін.)', week:'40 тиж.', cat:'medical', sec:'birth_ua_act', s:40, e:40},
+          {id:'ua11', label:'⭐ Народження дитини', week:'40 тиж.', cat:'milestone', sec:'birth_ua_act', ms:true, s:40, e:40},
+          {id:'ua12', label:'Перебування в пологовому (3-5 днів)', week:'після пологів', cat:'medical', sec:'after_ua', s:40, e:41},
+          {id:'ua13', label:'Перші щеплення (БЦЖ, гепатит B)', week:'перші 24 год', cat:'medical', sec:'after_ua', s:40, e:41},
+          {id:'ua14', label:'Шкала Апгар та обстеження', week:'одразу після', cat:'medical', sec:'after_ua', s:40, e:40},
+          {id:'ua15', label:'Свідоцтво про народження (РАГС)', week:'30 днів', cat:'finance', sec:'after_ua', s:40, e:42},
+          {id:'ua16', label:'Допомога при народженні', week:'одноразово + щомісяця', cat:'finance', sec:'after_ua', s:40, e:52},
+          {id:'ua17', label:'Реєстрація в ЦНАП', week:'перший місяць', cat:'finance', sec:'after_ua', s:40, e:42},
+          {id:'ua18', label:'Декларація з педіатром', week:'перший тиждень', cat:'medical', sec:'after_ua', s:40, e:41},
+          {id:'ua19', label:'Перший патронаж новонародженого', week:'перші 3 дні', cat:'medical', sec:'after_ua', s:40, e:40},
         ],
         state: {}
       }
