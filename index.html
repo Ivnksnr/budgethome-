@@ -884,7 +884,6 @@ function renderTask(folder, task, container) {
       <div class="cb ${done ? 'cb-done' : ''}" style="${done ? 'background:' + f.color + ';border-color:transparent' : ''}" onclick="td('${task.id}')">
         <svg class="ck" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="cdot" style="background:${dotColor};flex-shrink:0;margin-top:4px;width:6px;height:6px;border-radius:50%;"></div>
       <div class="task-body">
         <div class="task-title-row">
           <span class="task-title ${done ? 'task-done' : ''}">${esc(t.label)}${customBadge}</span>${sb}
