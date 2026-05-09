@@ -467,11 +467,36 @@ async function pullFromSupabase() {
   if (!remote.folders || remote.folders.length === 0) {
     // Empty database — push our defaults
     DB = loadDB() || defaultDB();
+if (!DB.folders) DB = defaultDB();
+for (const f of DB.folders) {
+  if (!f.state) f.state = {};
+  if (!Array.isArray(f.tasks)) f.tasks = [];
+  if (!Array.isArray(f.sections)) f.sections = [];
+}
     if (!DB.folders || DB.folders.length === 0) DB = defaultDB();
     await sbSave(DB);
     saveLocal(DB);
     renderSidebar(); renderAll();
     return true;
+  }
+  // Make sure every folder has state and tasks arrays (defensive)
+  for (const f of remote.folders) {
+    if (!f.state) f.state = {};
+    if (!Array.isArray(f.tasks)) f.tasks = [];
+    if (!Array.isArray(f.sections)) f.sections = [];
+  }
+  // Merge: if any default folder is missing — add it
+  const defaults = defaultDB();
+  const existingIds = new Set(remote.folders.map(f => f.id));
+  let merged = false;
+  for (const df of defaults.folders) {
+    if (!existingIds.has(df.id)) {
+      remote.folders.push(df);
+      merged = true;
+    }
+  }
+  if (merged) {
+    await sbSave(remote);
   }
   const remoteStr = JSON.stringify(remote);
   if (remoteStr === JSON.stringify(DB)) return true;
@@ -608,6 +633,12 @@ const CAT_DOT = {
 // STATE
 // ═══════════════════════════════════
 let DB = loadDB() || defaultDB();
+if (!DB.folders) DB = defaultDB();
+for (const f of DB.folders) {
+  if (!f.state) f.state = {};
+  if (!Array.isArray(f.tasks)) f.tasks = [];
+  if (!Array.isArray(f.sections)) f.sections = [];
+}
 let curView = 'list';
 let budgetOpen = true;
 let mId = null, mSt = 'none';
@@ -646,7 +677,7 @@ function renderSidebar() {
   DB.folders.forEach(f => {
     const isActive = f.id === DB.activeFolder;
     const tasks = f.tasks;
-    const done = tasks.filter(t => (f.state[t.id] || {}).status === 'done').length;
+    const done = tasks.filter(t => ((f.state||{})[t.id]||{}).status === 'done').length;
     const btn = document.createElement('button');
     btn.className = 'fb' + (isActive ? ' act' : '');
     if (isActive) {
@@ -796,7 +827,7 @@ function renderAll() {
     secEl.className = 'trim';
     secEl.id = 'sec-' + sec.id;
 
-    const done = secTasks.filter(t => (f.state[t.id] || {}).status === 'done').length;
+    const done = secTasks.filter(t => ((f.state||{})[t.id]||{}).status === 'done').length;
     secEl.innerHTML = `<div class="thdr" onclick="this.parentElement.classList.toggle('collapsed')">
       <div><h2>${esc(sec.name)}<span class="wk">${sec.sub || ''}</span></h2></div>
       <div style="display:flex;align-items:center;gap:5px">
@@ -837,7 +868,7 @@ function renderAll() {
 function updateStats() {
   const f = curFolder();
   let done = 0, total = f.tasks.length;
-  f.tasks.forEach(t => { if ((f.state[t.id] || {}).status === 'done') done++; });
+  f.tasks.forEach(t => { if (((f.state||{})[t.id]||{}).status === 'done') done++; });
   const pct = Math.round(done / total * 100);
   ['sd', 'hd'].forEach(id => document.getElementById(id).textContent = done);
   document.getElementById('st').textContent = total;
@@ -860,7 +891,7 @@ function sw(v) {
 
 function td(id) {
   const f = curFolder();
-  const cur = (f.state[id] || {}).status || 'none';
+  if (!f.state) f.state = {}; const cur = (f.state[id] || {}).status || 'none';
   f.state[id] = { ...(f.state[id] || {}), status: cur === 'done' ? 'none' : 'done' };
   saveDB(DB);
   renderAll();
