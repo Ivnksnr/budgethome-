@@ -503,19 +503,6 @@ for (const f of DB.folders) {
     showSync('🆕');
     return true;
   }
-  // Merge: if any default folder is missing — add it
-  const defaults = defaultDB();
-  const existingIds = new Set(remote.folders.map(f => f.id));
-  let merged = false;
-  for (const df of defaults.folders) {
-    if (!existingIds.has(df.id)) {
-      remote.folders.push(df);
-      merged = true;
-    }
-  }
-  if (merged) {
-    await sbSave(remote);
-  }
   const remoteStr = JSON.stringify(remote);
   if (remoteStr === JSON.stringify(DB)) return true;
   DB = remote;
