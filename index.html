@@ -6,6 +6,9 @@
 <title>Сімейний планувальник 👨‍👩‍👧</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root{
   --ink:#0a0810;--ink2:#2a2430;--ink3:#6a6070;
@@ -258,7 +261,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   <div class="sb-div"></div>
   <div style="display:flex;gap:5px;padding:6px 6px 2px;">
     <button onclick="manualPull()" id="pullBtn" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:10px;cursor:pointer;">⬇ Оновити</button>
-    <button onclick="manualPush()" id="pushBtn" style="flex:1;padding:7px 4px;border-radius:7px;border:none;background:rgba(201,112,144,.25);color:#c97090;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;cursor:pointer;">⬆ Зберегти</button>
   </div>
   <button onclick="copyShareLink()" id="shareBtn" style="display:block;margin:4px 6px 2px;width:calc(100% - 12px);padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,.08);background:transparent;color:rgba(255,255,255,.35);font-family:'DM Sans',sans-serif;font-size:10px;cursor:pointer;">🔗 Скопіювати посилання для мами</button>
   <div class="sb-foot"><span id="syncDot" style="opacity:0.3;margin-right:4px;">●</span>Baby Timeline v3.0</div>
@@ -399,66 +401,59 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 
 <script>
 // ═══════════════════════════════════
-// STORAGE — GitHub Gist Sync
+// FIREBASE CONFIG
+// ═══════════════════════════════════
+const FB = {
+  apiKey: "AIzaSyBM0FBBCY11nkS3EZEocX5Eq3746gXQ5xo",
+  authDomain: "baby-timeline-f37e2.firebaseapp.com",
+  databaseURL: "https://baby-timeline-f37e2-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "baby-timeline-f37e2",
+  appId: "1:483127266956:web:8f1adfb655f051b0ed35a9"
+};
+firebase.initializeApp(FB);
+const fbAuth = firebase.auth();
+const fbDB  = firebase.database();
+
+// ═══════════════════════════════════
+// STORAGE
 // ═══════════════════════════════════
 const SK = 'family-planner-v1';
-const GIST_TOKEN = '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';
-const GIST_FILE = 'family-planner-data.json';
-const GIST_DESC = 'family-planner-shared-v1';
-let gistId = null;
-let isSyncing = false;
+const SPACE_KEY = 'fp-space-id';
+let spaceRef = null;
 let saveTimeout = null;
+let listening = false;
 
 const saveLocal = db => localStorage.setItem(SK, JSON.stringify(db));
-const loadDB = () => { try { return JSON.parse(localStorage.getItem(SK)) || null; } catch { return null; } };
+const loadDB    = () => { try { return JSON.parse(localStorage.getItem(SK)) || null; } catch { return null; } };
 
 const saveDB = (db) => {
   saveLocal(db);
+  if (!spaceRef) return;
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => gistSave(db), 1500);
+  saveTimeout = setTimeout(() => {
+    spaceRef.set(db).catch(e => console.warn('FB save:', e));
+  }, 800);
 };
 
-async function gistReq(method, path, body) {
-  try {
-    const res = await fetch('https://api.github.com' + path, {
-      method,
-      headers: {
-        'Authorization': 'token ' + GIST_TOKEN,
-        'Content-Type': 'application/json',
-        'User-Agent': 'family-planner'
-      },
-      body: body ? JSON.stringify(body) : undefined
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch(e) { return null; }
+function isValid(d) {
+  return d && Array.isArray(d.folders) && d.folders.length > 0 &&
+    d.folders.some(f => Array.isArray(f.tasks) && f.tasks.length > 0);
 }
 
-async function gistSave(db) {
-  if (!gistId) return;
-  await gistReq('PATCH', '/gists/' + gistId, {
-    files: { [GIST_FILE]: { content: JSON.stringify(db, null, 2) } }
+function startListening(ref) {
+  if (listening) return;
+  listening = true;
+  ref.on('value', snap => {
+    const remote = snap.val();
+    if (!isValid(remote)) return;
+    if (JSON.stringify(remote) === JSON.stringify(DB)) return;
+    DB = remote;
+    saveLocal(DB);
+    renderSidebar();
+    renderAll();
+    if (curView === 'timeline') rg();
+    showSync('🔄');
   });
-  showSync('✅');
-}
-
-async function gistLoad() {
-  if (!gistId || isSyncing) return;
-  isSyncing = true;
-  const r = await gistReq('GET', '/gists/' + gistId);
-  isSyncing = false;
-  if (!r?.files?.[GIST_FILE]?.content) return;
-  try {
-    const remote = JSON.parse(r.files[GIST_FILE].content);
-    if (remote?.folders?.length > 0 && JSON.stringify(remote) !== JSON.stringify(DB)) {
-      DB = remote;
-      saveLocal(DB);
-      renderSidebar();
-      renderAll();
-      if (curView === 'timeline') rg();
-      showSync('🔄');
-    }
-  } catch(e) {}
 }
 
 function showSync(icon) {
@@ -469,121 +464,176 @@ function showSync(icon) {
   setTimeout(() => el.style.opacity = '0.3', 3000);
 }
 
-async function manualPush() {
-  const btn = document.getElementById('pushBtn');
-  if (!btn) return;
-  const orig = btn.textContent;
-  btn.textContent = '⏳...'; btn.disabled = true;
-  if (!gistId) { await initGist(); btn.textContent = orig; btn.disabled = false; return; }
-  const r = await gistReq('PATCH', '/gists/' + gistId, {
-    files: { [GIST_FILE]: { content: JSON.stringify(DB, null, 2) } }
-  });
-  btn.textContent = r ? '✅ Ok' : '❌';
-  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
-}
-
 async function manualPull() {
   const btn = document.getElementById('pullBtn');
   if (!btn) return;
   const orig = btn.textContent;
   btn.textContent = '⏳...'; btn.disabled = true;
-  await gistLoad();
-  btn.textContent = '✅ Ok';
-  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
-}
-
-async function initGist() {
-  // 1. Check URL for shared gist id: ?g=GIST_ID
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlGistId = urlParams.get('g');
-  
-  // 2. Check localStorage
-  const localGistId = localStorage.getItem('fp-gist-id');
-  
-  if (urlGistId) {
-    // Use gist from URL — save locally
-    gistId = urlGistId;
-    localStorage.setItem('fp-gist-id', gistId);
-    // Remove from URL without reload
-    window.history.replaceState({}, '', window.location.pathname);
-  } else if (localGistId) {
-    gistId = localGistId;
-  }
-
-  if (gistId) {
-    // Load from existing gist
-    const r = await gistReq('GET', '/gists/' + gistId);
-    if (r?.files?.[GIST_FILE]?.content) {
-      try {
-        const remote = JSON.parse(r.files[GIST_FILE].content);
-        if (remote?.folders?.length > 0) {
-          DB = remote;
-          saveLocal(DB);
-          renderSidebar();
-          renderAll();
-          showSync('✅');
-        }
-      } catch(e) {}
-    } else {
-      // Gist gone — create new
-      gistId = null;
-      localStorage.removeItem('fp-gist-id');
-      await createGist();
-    }
-  } else {
-    // First time — find or create gist
-    await findOrCreateGist();
-  }
-  
-  // Poll every 20 seconds
-  setInterval(gistLoad, 20000);
-  
-  // Show share link in console
-  if (gistId) {
-    const shareUrl = window.location.origin + window.location.pathname + '?g=' + gistId;
-    console.log('%c🔗 Посилання для мами: ' + shareUrl, 'color:#c97090;font-size:14px;font-weight:bold;');
-    // Update share button if exists
-    const shareBtn = document.getElementById('shareBtn');
-    if (shareBtn) shareBtn.style.display = 'block';
-  }
-}
-
-async function findOrCreateGist() {
-  // Search existing gists for our description
-  const gists = await gistReq('GET', '/gists?per_page=100');
-  if (gists) {
-    const found = gists.find(g => g.description === GIST_DESC);
-    if (found) {
-      gistId = found.id;
-      localStorage.setItem('fp-gist-id', gistId);
-      await initGist();
-      return;
+  if (spaceRef) {
+    const snap = await spaceRef.once('value');
+    const remote = snap.val();
+    if (isValid(remote)) {
+      DB = remote; saveLocal(DB);
+      renderSidebar(); renderAll();
+      if (curView === 'timeline') rg();
     }
   }
-  await createGist();
-}
-
-async function createGist() {
-  const r = await gistReq('POST', '/gists', {
-    description: GIST_DESC,
-    public: false,
-    files: { [GIST_FILE]: { content: JSON.stringify(DB, null, 2) } }
-  });
-  if (r?.id) {
-    gistId = r.id;
-    localStorage.setItem('fp-gist-id', gistId);
-    showSync('✅');
-  }
+  btn.textContent = '✅'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
 }
 
 function copyShareLink() {
-  if (!gistId) { alert('Зачекай — синхронізація ще налаштовується...'); return; }
-  const shareUrl = window.location.origin + window.location.pathname + '?g=' + gistId;
-  navigator.clipboard.writeText(shareUrl).then(() => {
+  const spaceId = localStorage.getItem(SPACE_KEY);
+  if (!spaceId) { alert('Зачекай — підключення...'); return; }
+  const url = window.location.origin + window.location.pathname + '?s=' + spaceId;
+  navigator.clipboard.writeText(url).then(() => {
     const btn = document.getElementById('shareBtn');
-    if (btn) { const orig = btn.textContent; btn.textContent = '✅ Скопійовано!'; setTimeout(() => btn.textContent = orig, 2000); }
+    if (btn) { const o = btn.textContent; btn.textContent = '✅ Скопійовано!'; setTimeout(() => btn.textContent = o, 2000); }
   });
 }
+
+// ═══════════════════════════════════
+// AUTH UI
+// ═══════════════════════════════════
+function showAuthScreen() {
+  let el = document.getElementById('authScreen');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'authScreen';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(10,8,15,.96);z-index:3000;display:flex;align-items:center;justify-content:center;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div style="background:#1a1520;border-radius:18px;padding:36px 32px;text-align:center;max-width:340px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.6);">
+      <div style="font-size:44px;margin-bottom:16px;">👨&#x200d;👩&#x200d;👧</div>
+      <h2 style="font-family:'Fraunces',serif;font-size:22px;color:#fff;margin-bottom:8px;">Сімейний планувальник</h2>
+      <p style="font-size:12px;color:#8a8090;margin-bottom:28px;line-height:1.6;">Увійди через Google щоб синхронізувати дані між пристроями</p>
+      <button onclick="signInGoogle()" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;border-radius:10px;border:none;background:#fff;color:#1a1520;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+        Увійти через Google
+      </button>
+      <button onclick="skipAuth()" style="margin-top:10px;width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#6a6070;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">Продовжити без входу</button>
+    </div>`;
+}
+
+function showSpaceScreen(user) {
+  const el = document.getElementById('authScreen');
+  if (!el) return;
+  // Check URL for space id
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSpace = urlParams.get('s');
+  if (urlSpace) {
+    window.history.replaceState({}, '', window.location.pathname);
+    joinSpace(urlSpace, user);
+    return;
+  }
+  el.innerHTML = `
+    <div style="background:#1a1520;border-radius:18px;padding:36px 32px;text-align:center;max-width:360px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.6);">
+      <div style="font-size:36px;margin-bottom:12px;">👋</div>
+      <h2 style="font-family:'Fraunces',serif;font-size:20px;color:#fff;margin-bottom:8px;">Привіт, ${user.displayName?.split(' ')[0] || 'друже'}!</h2>
+      <p style="font-size:12px;color:#8a8090;margin-bottom:24px;line-height:1.6;">Створи новий сімейний простір або приєднайся до існуючого</p>
+      <button onclick="createSpace('${user.uid}')" style="width:100%;padding:12px;border-radius:10px;border:none;background:#c97090;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;">
+        ✨ Створити новий простір
+      </button>
+      <p style="font-size:11px;color:#6a6070;margin-bottom:8px;">або введи код від іншого члена сім'ї</p>
+      <div style="display:flex;gap:8px;">
+        <input id="spaceInput" placeholder="Код простору" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;" onkeydown="if(event.key==='Enter')joinSpaceFromInput('${user.uid}')"/>
+        <button onclick="joinSpaceFromInput('${user.uid}')" style="padding:10px 14px;border-radius:8px;border:none;background:#2a2430;color:#c97090;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">→</button>
+      </div>
+      <div id="spaceErr" style="color:#e06080;font-size:11px;margin-top:8px;display:none;"></div>
+    </div>`;
+  setTimeout(() => document.getElementById('spaceInput')?.focus(), 100);
+}
+
+function showUserBar(user) {
+  let bar = document.getElementById('userBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'userBar';
+    bar.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:500;background:#1a1520;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,.3);';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `
+    ${user.photoURL ? `<img src="${user.photoURL}" width="22" height="22" style="border-radius:50%;">` : ''}
+    <span style="font-size:11px;color:#cac0d0;">${user.displayName || user.email}</span>
+    <button onclick="signOut()" style="font-size:10px;padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.15);background:transparent;color:#8a8090;cursor:pointer;font-family:'DM Sans',sans-serif;">Вийти</button>`;
+}
+
+function signInGoogle() {
+  fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(e => alert('Помилка: ' + e.message));
+}
+
+function skipAuth() {
+  document.getElementById('authScreen')?.remove();
+}
+
+function signOut() {
+  fbAuth.signOut();
+  localStorage.removeItem(SPACE_KEY);
+  location.reload();
+}
+
+async function createSpace(uid) {
+  const spaceId = uid.slice(0,8) + Date.now().toString(36);
+  const ref = fbDB.ref('spaces/' + spaceId);
+  await ref.set(DB);
+  localStorage.setItem(SPACE_KEY, spaceId);
+  spaceRef = ref;
+  document.getElementById('authScreen')?.remove();
+  startListening(ref);
+  showSync('✅');
+}
+
+async function joinSpace(spaceId, user) {
+  const ref = fbDB.ref('spaces/' + spaceId);
+  const snap = await ref.once('value');
+  const data = snap.val();
+  if (isValid(data)) {
+    localStorage.setItem(SPACE_KEY, spaceId);
+    spaceRef = ref;
+    DB = data; saveLocal(DB);
+    renderSidebar(); renderAll();
+    document.getElementById('authScreen')?.remove();
+    startListening(ref);
+    showSync('✅');
+  } else {
+    const err = document.getElementById('spaceErr');
+    if (err) { err.textContent = 'Простір не знайдено. Перевір код.'; err.style.display = 'block'; }
+  }
+}
+
+async function joinSpaceFromInput(uid) {
+  const code = document.getElementById('spaceInput')?.value?.trim();
+  if (!code) return;
+  await joinSpace(code, { uid });
+}
+
+// ═══════════════════════════════════
+// AUTH STATE
+// ═══════════════════════════════════
+fbAuth.onAuthStateChanged(async user => {
+  if (user) {
+    showUserBar(user);
+    const savedSpace = localStorage.getItem(SPACE_KEY);
+    if (savedSpace) {
+      // Reconnect to existing space
+      spaceRef = fbDB.ref('spaces/' + savedSpace);
+      const snap = await spaceRef.once('value');
+      const data = snap.val();
+      if (isValid(data)) {
+        DB = data; saveLocal(DB);
+        renderSidebar(); renderAll();
+      }
+      document.getElementById('authScreen')?.remove();
+      startListening(spaceRef);
+      showSync('✅');
+    } else {
+      showSpaceScreen(user);
+    }
+  } else {
+    showAuthScreen();
+  }
+});
 
 const EMOJIS = ['🤰','🏠','🔨','🛏️','🚗','💊','🎓','💼','🌿','🍼','🏗️','💡','🛁','🪴','🐾','📦','🎯','💰','🏋️','✈️'];
 
