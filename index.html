@@ -494,18 +494,6 @@ async function manualPull() {
   setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
 }
 
-// Auto-poll every 10s
-setInterval(pullFromSupabase, 10000);
-
-// Initial load
-(async () => {
-  // Show local data first for instant render
-  DB = loadDB() || defaultDB();
-  renderSidebar();
-  renderAll();
-  // Then sync with cloud
-  await pullFromSupabase();
-})();
 
 
 const EMOJIS = ['🤰','🏠','🔨','🛏️','🚗','💊','🎓','💼','🌿','🍼','🏗️','💡','🛁','🪴','🐾','📦','🎯','💰','🏋️','✈️'];
@@ -1156,6 +1144,12 @@ document.addEventListener('keydown', e => {
 
 renderSidebar();
 renderAll();
+
+// Supabase: initial sync + auto-poll
+(async () => {
+  try { await pullFromSupabase(); } catch(e) { console.warn('initial pull:', e); }
+})();
+setInterval(() => { try { pullFromSupabase(); } catch(e) {} }, 10000);
 
 window.addEventListener('resize', () => { if (curView === 'timeline') rg(); });
 </script>
